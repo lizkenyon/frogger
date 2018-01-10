@@ -1,0 +1,1621 @@
+/////////////////////////////////////
+COMP 3430
+Assigment 2: Frogger
+Elizabeth Kenyon
+7739830
+listing file
+
+//////////////////////////////////////
+
+//***************************************
+// Comp 3430
+// Assignment 2
+// Frogger
+// Elizabeth Kenyon
+// 7739830
+//***************************************
+
+#include <string.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/select.h>
+#include <time.h>
+
+#include "Player.h"
+#include "console.h"
+#include "pthreadwrapper.h"
+#include "globals.h"
+#include "log.h"
+
+/////////////////////////////////////////////
+
+#define GAME_ROWS 24
+#define GAME_COLS 80
+#define NUM_THREADS 100
+
+/**** DIMENSIONS MUST MATCH the ROWS/COLS */
+
+char *GAME_BOARD[] = {
+"                                   Lives:",
+"/------\\          /------\\          /------\\          /------\\          /------\\",
+"|      |          |      |          |      |          |      |          |      |",
+"+      +----------+      +----------+      +----------+      +----------+      +",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"",
+"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"",
+"",
+"",
+"" };
+
+#define PLAYER_ANIM_TILES 2
+#define PLAYER_HEIGHT 2
+#define LOG_ANIM_TILES 2
+#define LOG_HEIGHT 4
+static char* PLAYER_GRAPHIC[PLAYER_ANIM_TILES][PLAYER_HEIGHT+1] = {
+  {"@@",
+   "<>"},
+  {"--",
+   "<>"}
+};
+
+static char* quit = "Ya quitter... :(";
+int thread_count = 0;
+pthread_t threads[NUM_THREADS]; 
+pthread_t log_threads[NUM_THREADS];
+int game_on = 1;
+
+//Player *player; 
+
+///////////////////////////////Start up and Clean up/////////////////////////////
+
+void initializeLocks()
+{
+	initializeDrawLock();
+	initializeFrogLock();
+	initializeGameOnLock();
+	initializeListLock();
+	initializeLogCountLock();
+	initializePlayerLivesLock();
+
+}
+
+void destroyLocks()
+{
+	destroyDrawLock();
+	destroyFrogLock();
+	destroyGameOnLock();
+	destroyListLock();
+	destroyLogCountLock();
+	destroyPlayerLivesLock();
+}
+
+void JoinThreads(){
+	for(int i = 0; i < thread_count; i++){
+		join_pthread(threads[i]);
+	}
+}
+////////////////////////////////Keyboard////////////////////////////
+
+void processCommand(char c){
+	if(c == 'w'){
+		clearFrogger(getPlayer());
+		movePlayerUp(getPlayer());
+	}
+	else if(c == 'a'){
+		clearFrogger(getPlayer());
+		movePlayerLeft(getPlayer());
+	}
+	else if(c == 's'){
+		clearFrogger(getPlayer());
+		movePlayerDown(getPlayer());
+
+	}
+	else if(c == 'd'){
+		clearFrogger(getPlayer());
+		movePlayerRight(getPlayer());
+
+	}
+	else if(c == 'q'){
+		lockDrawLock();
+		putBanner(quit);
+		unlockDrawLock();
+		disableConsole(1);
+		gameOff(); 
+		pthread_exit(NULL);
+
+	}
+}
+
+void *getKeyboard(){
+
+	fd_set set;
+	char command;
+	while(isGameOn()){
+		FD_ZERO(&set);
+		FD_SET(STDIN_FILENO, &set);
+		struct timespec timeout = getTimeout(1);
+		int ret = pselect(FD_SETSIZE, &set, NULL, NULL, &timeout, NULL);
+		if(ret == -1){
+			perror("Error in get keyboard");
+			exit(EXIT_FAILURE);
+		}
+		else if(ret > 0){
+			command = getchar();
+
+			processCommand(command);
+			quickSleep(5);
+
+		}
+	}
+	pthread_exit(NULL);
+}
+//////////////////////////Screen////////////////////////////////
+
+void *refresh_screen()
+{ 
+	while(isGameOn()){
+	lockDrawLock();
+	consoleRefresh();
+	unlockDrawLock();
+	quickSleep(5);
+   }
+   pthread_exit(NULL);
+}
+
+void *player_animation()
+{
+	int i = 0;
+
+	while(isGameOn()){
+		Player *player = getPlayer();
+		animateFrog(player);
+		quickSleep(25);
+
+	}
+		pthread_exit(NULL);
+} 
+
+////////////////////Spawn Log Rows///////////////////////////////
+
+void *spawnRow1(){
+	int row = 1;
+	while(isGameOn()){
+		Log* log = createLog(row);
+		if(log != NULL){
+			create_pthread(&log->thread, NULL, logDuties, (void*)log);
+			srand(time(NULL));
+			int sleep = rand()%350 + 250;
+			quickSleep(sleep);
+		}
+	}
+	pthread_exit(NULL);
+}
+
+void *spawnRow2(){
+	int row = 2; 
+	while(isGameOn()){
+		Log* log = createLog(row);
+		if(log != NULL){
+			create_pthread(&log->thread, NULL, logDuties, (void*)log);
+
+			srand(time(NULL));
+			int sleep = rand()%300 +250;
+			quickSleep(sleep);
+		}
+	}
+	
+	pthread_exit(NULL);
+} 
+
+void *spawnRow3(){
+	int row = 3;
+	while(isGameOn()){
+		Log* log = createLog(row);
+		if(log != NULL){
+			create_pthread(&log->thread, NULL, logDuties, (void*)log);
+
+			srand(time(NULL));
+			int sleep = rand()%300 +250;
+			quickSleep(sleep);
+		}
+	}
+	
+	pthread_exit(NULL);
+}
+
+void *spawnRow4(){
+	int row = 4;
+	while(isGameOn()){
+		Log* log = createLog(row);
+		if(log != NULL){
+			create_pthread(&log->thread, NULL, logDuties, (void*)log);
+
+			srand(time(NULL));
+			int sleep = rand()%300 +250;
+			quickSleep(sleep);
+		}
+	}
+	
+	pthread_exit(NULL);
+}  
+
+//////////////////////////////////////////////////////////////
+
+int main (int argc, char * argv[]){
+int rc;
+
+	if (consoleInit(GAME_ROWS, GAME_COLS, GAME_BOARD)){
+		initializeLocks();
+		initializeGameOnCV();
+
+		mallocPlayer();
+		startPlayer(getPlayer()); //initialize player to correct position 
+		
+
+		create_pthread(&threads[thread_count], NULL, player_animation, NULL);
+		thread_count++;
+		create_pthread(&threads[thread_count], NULL, refresh_screen, NULL);
+		thread_count++; 
+		create_pthread(&threads[thread_count], NULL, getKeyboard, NULL);
+		thread_count++;
+		create_pthread(&threads[thread_count], NULL, spawnRow1, NULL);
+		thread_count++;
+		create_pthread(&threads[thread_count], NULL, spawnRow3, NULL);
+		thread_count++; 
+		create_pthread(&threads[thread_count], NULL, spawnRow2, NULL);
+		thread_count++; 
+		create_pthread(&threads[thread_count], NULL, spawnRow4, NULL);
+		thread_count++;  
+		create_pthread(&threads[thread_count], NULL, cleanUpLogs, NULL);
+		thread_count++; 
+		create_pthread(&threads[thread_count], NULL, updateLives, NULL);
+		thread_count++; 
+		 //put in some glabal or perhaps the wrapper
+		}
+	lockGameOnLock();
+	while(!isGameOn()){
+		waitGameOnCV();
+	}
+	unlockGameOnLock();
+
+	JoinThreads();
+
+	destroyLocks();
+
+	finalKeypress();
+
+	consoleFinish();
+
+	freePlayer();
+
+	printf("\nDone!\n");
+
+	pthread_exit(NULL);
+
+	return 0;
+}
+
+
+
+///////////////////////////////////////
+//pthreadwrapper.h
+//Comp 3430
+//A2 Frogger
+//Elizabeth Kenyon
+//7739830
+// Thread wrapper methods for error checking
+////////////////////////////////////////
+
+#ifndef PTHREADWRAPPER_H
+#define PTHREADWRAPPER_H
+
+/////////////////////////////////////////
+
+void create_pthread(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg);
+
+void join_pthread(pthread_t thread);
+
+/////////////////////////////////////////
+
+#endif 
+
+///////////////////////////////////////
+//pthreadwrapper.c
+//Comp 3430
+//A2 Frogger
+//Elizabeth Kenyon
+//7739830
+// Thread wrapper methods for error checking
+////////////////////////////////////////
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <time.h>
+
+#include "pthread.h"
+
+///////////////////////////////////////////
+
+void create_pthread(pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine) (void *), void *arg){
+	int rc;
+	rc = pthread_create(thread, attr, start_routine, arg);
+	if(rc){
+	   printf("ERROR-return code from pthread_create() is %d\n", rc);
+       exit(EXIT_FAILURE);
+	}
+}
+
+void join_pthread(pthread_t thread){
+	int rc;
+	rc = pthread_join(thread, NULL);
+	if(rc != 0){
+		perror("Error in pthread join");
+		exit(EXIT_FAILURE);
+	}
+}
+
+///////////////////////////////////////////////
+//Player.h
+//Comp 3430
+//A2
+//Elizabeth Kenyon
+//7739830
+///////////////////////////////////////////////
+
+#ifndef PLAYER_H
+#define PLAYER_H
+
+//////////////////////////////////////////
+
+typedef struct PLAYER Player;
+
+///////////////////////////////////////////
+
+struct PLAYER{
+	int x;
+	int y;
+	int tile;
+};
+
+//////////////////////////////////////
+
+//Controls the player animation until game off
+void *player_animation();
+
+//moves player upwards on screen
+void movePlayerUp(Player *player);
+
+//moves player left on screen
+void movePlayerLeft(Player *player);
+
+//moves player right on screen
+void movePlayerRight(Player *player);
+
+//moves player down on screen
+void movePlayerDown(Player *player);
+
+// moves player to starting postion 
+void startPlayer(Player *player);
+
+//clears the player from the screen
+void clearFrogger(Player *player);
+
+//checks to see if the player is currently on a log,
+//and sets the log to have the player if this is true.
+void playerOnLog(Player *player);
+
+//draws the player on the screen at its current position
+void drawFrog(Player *player);
+
+void animateFrog(Player *player);
+
+//performs actions that must occur when frogger dies
+void frogDead();
+
+//checks to see if the frog is in a "valid" position
+void isFroggerDead(Player *player);
+
+void* updateLives();
+
+///////////////////////////////////////
+
+#endif 
+
+///////////////////////////////////////////////
+//Player.c
+//Comp 3430
+//A2
+//Elizabeth Kenyon
+//7739830
+///////////////////////////////////////////////
+
+#include <string.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "Player.h"
+#include "globals.h"
+#include "console.h"
+#include "list.h"
+
+////////////////////////////////////////////////
+
+#define LEFT -1
+#define RIGHT 1
+#define MOVEUP -4
+#define MOVEUPFINAL -3
+#define MOVEDOWN 4
+#define STARTX 21
+#define STARTY 40
+#define ZERO 0
+#define EIGHTY 80
+#define BOTTOM 24
+
+#define LIVESCOLUMN 40
+
+#define ROW1 16
+#define ROW2 12
+#define ROW3 8
+#define ROW4 4
+
+#define LOGLENGTH 24
+
+#define PLAYER_ANIM_TILES 2
+#define PLAYER_HEIGHT 2
+
+
+//24 rows 
+//80 colums
+//x = rows
+//y = columns
+
+////////////////////////////////////////////////
+
+static char* PLAYER_GRAPHIC[PLAYER_ANIM_TILES][PLAYER_HEIGHT+1] = {
+  {"@@",
+   "<>"},
+  {"--",
+   "<>"}
+};
+
+static int port1 = 0;
+static int port2 = 0;
+static int port3 = 0;
+static int port4 = 0;
+static int port5 = 0;
+
+static char* loser = "Looooooooser!";
+static char* winner = "Winner winner chicken dinner!";
+///////////////////////////////////////////////
+
+
+void movePlayerUp(Player *player){
+	if(player != NULL){
+		char **tile = PLAYER_GRAPHIC[player->tile];
+		clearFrogger(player);
+		lockFrogLock();
+		if(player->x >= ROW3){
+			player->x = player->x + MOVEUP;
+		}
+		else{
+			player->x = player->x + MOVEUPFINAL;
+		}
+		unlockFrogLock();
+		lockDrawLock();
+		consoleDrawImage(player->x, player->y, tile, PLAYER_HEIGHT);
+		unlockDrawLock();
+		isFroggerDead(getPlayer());
+	}
+}
+
+void movePlayerLeft(Player *player){
+	if(player != NULL){
+		char **tile = PLAYER_GRAPHIC[player->tile];
+		if(player->y != ZERO){
+			clearFrogger(player);
+			lockFrogLock();
+			player->y = player->y + LEFT;
+			unlockFrogLock();
+			lockDrawLock();
+			consoleDrawImage(player->x, player->y, tile, PLAYER_HEIGHT);
+			unlockDrawLock();
+			isFroggerDead(getPlayer());
+		}
+	}
+}
+
+void movePlayerRight(Player *player){
+	if(player != NULL){
+		char **tile = PLAYER_GRAPHIC[player->tile];
+		if(player->y != EIGHTY){
+			clearFrogger(player);
+			lockFrogLock();
+			player->y = player->y + RIGHT;
+			unlockFrogLock();
+			lockDrawLock();
+			consoleDrawImage(player->x, player->y, tile, PLAYER_HEIGHT);
+			unlockDrawLock();
+			isFroggerDead(getPlayer());
+		}
+	}
+}
+
+void movePlayerDown(Player *player){
+	if(player != NULL){
+		char **tile = PLAYER_GRAPHIC[player->tile];
+		if(player->x != BOTTOM){
+			clearFrogger(player);
+			lockFrogLock();
+			player->x = player->x + MOVEDOWN;
+			unlockFrogLock();
+			lockDrawLock();
+			consoleDrawImage(player->x, player->y, tile, PLAYER_HEIGHT);
+			unlockDrawLock();
+			isFroggerDead(getPlayer());
+		}
+
+	}
+}
+
+void startPlayer(Player *player){
+	if(player != NULL){
+		lockFrogLock();
+		player->x = STARTX;
+		player->y = STARTY;
+		player->tile = 0;
+		unlockFrogLock();
+	}
+}
+
+void clearFrogger(Player *player){
+	lockDrawLock();
+	consoleClearImage(player->x, player->y, PLAYER_ANIM_TILES, PLAYER_HEIGHT);
+	unlockDrawLock();
+}
+
+void drawFrog(Player *player){
+	if(player != NULL){
+		char** tile = PLAYER_GRAPHIC[1];
+		lockDrawLock();
+		consoleDrawImage(player->x, player->y, tile, PLAYER_HEIGHT);
+		unlockDrawLock();
+	}
+}
+
+void animateFrog(Player *player){
+	if(player != NULL){
+		if(player->tile == 0){
+			player->tile = 1;
+		}
+		else{
+			player->tile = 0;
+		}
+		clearFrogger(player);
+		lockDrawLock();
+		consoleDrawImage(player->x, player->y, PLAYER_GRAPHIC[player->tile], PLAYER_HEIGHT);
+		unlockDrawLock();
+	}
+}
+
+
+void playerOnLog(Player *player){
+	Node *curr = getHead();
+	int found = 0;
+	if(curr != NULL && player != NULL){
+		int row = player->x -1;
+		if(row == ROW1 || row == ROW2 || row == ROW3 || row == ROW4){
+			int column = player->y;
+			while(!found && curr != NULL){
+				if(column > curr->log->column && column <= curr->log->column + LOGLENGTH && curr->log->row == row){
+					lockListLock();
+					curr->log->frog_on = 1;
+					unlockListLock();
+					found = 1; 
+				}
+				else{
+					curr = curr->next;
+				}
+			}
+			if(found){
+				found = 0;
+			}
+			else{
+				frogDead();
+			}
+		}
+	}
+}
+
+void playerInPort(Player *player){
+	if(player != NULL){
+		if(player->x <= 3){
+			if(player->y >=2 && player->y<=7 && !port1){
+				port1 = 1;
+				startPlayer(getPlayer());
+			}
+			else if(player->y >=19 && player->y<=25 && !port2){
+				port2 = 1;
+				startPlayer(getPlayer());
+			}
+			else if(player->y >=37 && player->y<=43 && !port3){
+				port3 = 1;
+				startPlayer(getPlayer());
+			}
+			else if(player->y >=55 && player->y<=61 && !port4){
+				port4 = 1;
+				startPlayer(getPlayer());
+			}
+			else if(player->y >=73 && player->y<=79 && !port1){
+				port5 = 1;
+				startPlayer(getPlayer());
+			}
+			else{
+			frogDead();
+		    }
+		}
+	}
+
+}
+
+void isFroggerDead(Player *player){
+	if(player != NULL){
+		playerOnLog(player);
+		playerInPort(player);
+		if(player->y >= EIGHTY || player->y <= ZERO){
+			frogDead();
+		}
+	}
+}
+
+void frogDead(){
+	startPlayer(getPlayer());
+	loseLife();
+
+}
+
+void* updateLives(){
+	while(isGameOn()){
+		int lives = getLives();
+		char num_lives[2];
+		sprintf(num_lives, "%d", lives);
+
+		lockDrawLock();
+		putString(num_lives, ZERO, LIVESCOLUMN, 2);
+		unlockDrawLock();
+
+		if(lives <= 0){
+			lockDrawLock();
+			putBanner(loser);
+			disableConsole(1);
+			unlockDrawLock();
+			gameOff();
+		}
+		if(port1 && port2 && port3 && port4 && port5){
+			lockDrawLock();
+			putBanner(winner);
+			disableConsole(1);
+			unlockDrawLock();
+			gameOff();
+		}
+		quickSleep(50);
+	}
+	pthread_exit(NULL);
+
+}
+
+//////////////////////////////////
+//list.h
+//Comp 3430
+//A2
+//Elzabeth Kenyon
+//7739830
+/////////////////////////////
+
+#include <stdio.h>
+#include <stdlib.h>
+#include "log.h"
+
+
+///////////////////////////////////////////
+
+typedef struct NODE Node;
+
+///////////////////////////////////////////
+
+struct NODE{
+	Log *log;
+	Node *next;
+	Node *prev;
+};
+
+//////////////////////////////////////
+
+//insert log into linked list
+void insert(Log *log);
+
+//delete a node
+void deleteNode(Node *node);
+
+//return pointer to head node
+Node *getHead();
+
+//////////////////////////////////////
+
+
+///////////////////////////////////////
+//list.c
+//Comp 3430
+//A2
+//Elizabeth Kenyon
+//7739830
+// doubly linked list to hold logs
+///////////////////////////////////////
+
+#include <stdio.h>
+#include <stdlib.h>
+#include "list.h"
+#include "log.h"
+
+/////////////////////////////////////////////
+
+static Node *head = NULL;
+//static Node *currNode = NULL;
+int count = 0;
+
+//////////////////////////////////////////////
+
+void insert(Log *log){
+	count++;
+	if(log != NULL){
+ 
+		Node *newNode = (Node *)malloc(sizeof(Node));
+		if(newNode != NULL){
+
+			newNode->log = log;
+			if(head != NULL){
+				newNode->next = head;
+				head->prev = newNode;
+				newNode->prev = NULL;
+				head = newNode;
+			}
+			else{
+				head = newNode;
+				newNode->next = NULL;
+				newNode->prev = NULL;
+			}
+		}
+
+	}
+}
+
+void deleteNode(Node *node){
+	if(node != NULL && node->next !=NULL && node->prev != NULL){
+		node->prev->next = node->next;
+		node->next->prev = node->prev;
+		free(node->log);
+		free(node);
+	}
+	else if(node != NULL && node->next != NULL){
+		head = node->next;
+		free(node->log);
+		free(node);
+	}
+	else if(node != NULL && node->prev!= NULL){
+		node->prev->next = NULL;
+		free(node->log);
+		free(node);
+	}
+	else if(node != NULL){
+		head = NULL;
+		free(node->log);
+		free(node);
+	}
+}
+
+Node *getHead(){
+	return head;
+}
+
+
+
+/////////////////////////////////////////////
+//log.h
+//Comp 3430
+//A2
+//Elizabeth Kenyon
+//7739830
+////////////////////////////////////////////
+
+
+#ifndef LOG_H
+#define LOG_H
+
+//////////////////////////////////////////
+
+typedef struct LOG Log;
+
+///////////////////////////////////////////
+
+struct LOG{
+	int row;
+	int column;
+	int tile;
+	pthread_t thread;
+	int frog_on;
+};
+
+//////////////////////////////////////
+
+//Move log one postion depending on the row the log is in
+void moveLog(Log *log);
+
+//Animate log given the current position
+void animateLog(Log *log);
+
+//Set the log to postion given row and column
+void initializeLog(Log *log, int row, int column);
+
+//clears position where log is
+void clearLog(Log *log);
+
+//creates a log given the row is should be in, rows 1-4
+Log* createLog(int row);
+
+//Moves and animates the log depending on the row.
+void* logDuties(void *log);
+
+void frogLogDuties(Log *log);
+
+//Moves through list of logs and deletes any that are off screen
+void* cleanUpLogs();
+
+//helper method to check if log is off screen
+int isOffScreen(Log *log);
+
+///////////////////////////////////////
+
+#endif 
+
+//////////////////////////////////////////////
+//log.c
+//Comp 3430
+//A2
+//Elizabeth Kenyon
+//7739830
+/////////////////////////////////////////////
+
+#include <string.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "log.h"
+#include "list.h"
+#include "Player.h"
+#include "globals.h"
+#include "console.h"
+#include "pthreadwrapper.h"
+
+//////////////////////////////////////////
+
+#define MOVERIGHT 1
+#define MOVELEFT -1
+#define ROW1 16
+#define ROW2 12
+#define ROW3 8
+#define ROW4 4
+#define STARTCOLUMN1 -20
+#define STARTCOLUMN2 100
+#define ZERO 0
+#define LOG_HEIGHT 4
+#define LOG_LENGTH 24
+#define LOG_ANIM_TILES 2
+#define SPEEDMODIFIER 2
+#define MINCOL -25
+#define MAXCOL 100
+
+//24 rows 
+//80 colums
+
+
+
+////////////////////////////////////////
+
+static char* LOG_GRAPHIC[LOG_ANIM_TILES][LOG_HEIGHT +1]= {
+	{"|======================|",
+	"+                      +",
+	"+                      +",
+	"|======================|"},
+
+	{"|======================|",
+	"|                      |",
+	"|                      |",
+	"|======================|"}
+};
+
+/////////////////////////////////////////
+
+void moveLog(Log *log){
+	if(log != NULL){
+
+		char **tile = LOG_GRAPHIC[log->tile];
+		lockDrawLock();
+		clearLog(log);
+		if(log->row == ROW1 || log->row == ROW3){
+			log->column = (log->column + MOVERIGHT);
+		}
+		else{
+			log->column = log->column + MOVELEFT;
+		}
+		consoleDrawImage(log->row, log->column, tile, LOG_HEIGHT);
+		unlockDrawLock();
+	}
+}
+
+void animateLog(Log *log){
+	if(log != NULL){
+		if(log->tile == 0){
+			log->tile = 1;
+		}
+		else{
+			log->tile = 0;
+		}
+		lockDrawLock();
+		clearLog(log);
+		consoleDrawImage(log->row, log->column, LOG_GRAPHIC[log->tile], LOG_HEIGHT);
+		unlockDrawLock();
+	}
+}
+
+void initializeLog(Log *log, int row, int column){
+	if(log != NULL){
+		log->row = row;
+		log->column = column;
+		log->tile = 0; 
+	}
+}
+
+void clearLog(Log *log){
+	consoleClearImage(log->row, log->column, LOG_HEIGHT, LOG_LENGTH);
+}
+
+Log* createLog( int row){
+	Log *newLog = (Log*)malloc(sizeof(Log));
+	if(row > 0 && row < 5){
+		if(newLog != NULL){
+			if(row == 1){
+				initializeLog(newLog, ROW1, STARTCOLUMN1);
+			}
+			else if(row == 3){
+				initializeLog(newLog, ROW3, STARTCOLUMN1);
+			}
+			else if(row == 2){
+				initializeLog(newLog, ROW2, STARTCOLUMN2);
+			}
+			else if(row == 4){
+				initializeLog(newLog, ROW4, STARTCOLUMN2);
+			} 
+			lockListLock();
+			insert(newLog);
+			unlockListLock();
+		}
+	}
+	return newLog;
+}
+
+void* logDuties( void * log){
+	Log *this_log = (Log *)log;
+	int row;
+	Player *currPlayer;
+	if(this_log != NULL){
+		row = this_log->row;
+		while(isGameOn()){
+
+			if(this_log->frog_on == 1){
+				Player *currPlayer = getPlayer();
+				int oldRow = currPlayer->x;
+				int row = this_log->row;
+				moveLog(this_log);
+				if(row == ROW1 || row == ROW3){
+					movePlayerRight(currPlayer); 
+				}
+				else{
+					movePlayerLeft(currPlayer);
+				}
+				quickSleep(row/SPEEDMODIFIER);
+				animateLog(this_log);
+				if(currPlayer->x != oldRow || currPlayer->y < this_log->column || currPlayer->y > this_log->column + LOG_LENGTH){
+					this_log->frog_on = 0;
+				}
+			}
+			else{  
+				moveLog(this_log);
+				quickSleep(row/SPEEDMODIFIER);
+				animateLog(this_log);
+				if(isOffScreen(this_log)){
+					pthread_exit(NULL);
+					{}
+				}
+
+			}
+		}
+		pthread_exit(NULL);
+	}
+}
+
+void* cleanUpLogs(){
+	Node *node = getHead();
+	Node *nextNode;
+	while(isGameOn()){
+		if(node != NULL){
+			if(isOffScreen(node->log)){
+				join_pthread(node->log->thread);
+				lockListLock();
+				deleteNode(node);
+				unlockListLock();
+			}
+			node = node->next;
+		}
+		else{
+			node = getHead();
+		}
+		sleepTicks(1);
+	}
+	node = getHead();
+	while(node != NULL){
+		if(node->next != NULL){
+		nextNode = node->next;
+		join_pthread(node->log->thread);
+		lockListLock();
+		deleteNode(node);
+		unlockListLock();
+		node = nextNode;
+	  }
+	  else{
+	  	lockListLock();
+	  	deleteNode(node);
+	  	unlockListLock();
+	  	node = NULL; 
+	  } 
+	} 
+	pthread_exit(NULL);
+}
+
+int isOffScreen(Log *log){
+	int ret = 0;
+	if(log != NULL){
+		if(log->row == ROW1 || log ->row == ROW3){
+			if(log->column > MAXCOL){
+				ret = 1;
+			}
+		}
+		else{
+			if(log->column < MINCOL){
+				ret = 1;
+			}
+		}
+	}
+	return ret; 
+}
+
+/////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////
+/* GAME GLOBALS
+/ gameGlobals.h
+/Comp 3430 
+/A2
+/Elizaeth Kenyon
+/7739830
+/ A file to keep track of all globals needed for the game.
+// As well as to handle error checking.
+*/////////////////////////////////////////////////////////////
+
+#ifndef GLOBALS_H
+#define GLOBALS_H
+
+#include "Player.h"
+
+#define MUTEX_NORMAL PTHREAD_MUTEX_NORMAL
+
+static pthread_mutexattr_t attribute_norm;
+static pthread_mutex_t draw_lock;
+static pthread_mutex_t refresh_lock;
+static pthread_mutex_t game_on_lock;
+static pthread_mutex_t list_lock;
+static pthread_cond_t game_on_cv;
+
+//////////////////////////////
+Player* getPlayer();
+
+void mallocPlayer();
+
+void updatePlayer(Player *this_player);
+
+void freePlayer();
+//////////////////////////////
+
+void loseLife();
+
+int getLives();
+
+/////////////////////////////
+
+void initializeDrawLock();
+
+void lockDrawLock();
+
+void unlockDrawLock();
+
+void destroyDrawLock();
+
+/////////////////////////////
+
+
+void initializeFrogLock();
+
+void lockFrogLock();
+
+void unlockFrogLock();
+
+void destroyFrogLock();
+
+//////////////////////////
+
+void initializeGameOnCV();
+
+void destroyGameOnCV();
+
+void signalGameOnCV();
+
+void waitGameOnCV();
+
+/////////////////////////
+
+void initializeGameOnLock();
+
+void lockGameOnLock();
+
+void unlockGameOnLock();
+
+void destroyGameOnLock();
+
+/////////////////////////////
+
+void initializeListLock();
+
+void lockListLock();
+
+void unlockListLock();
+
+void destroyListLock();
+
+////////////////////////////////
+
+
+void initializeLogCountLock();
+
+void lockLogCountLock();
+
+void unlockLogCountLock();
+
+void destroyLogCountLock();
+
+////////////////////////////////
+ 
+ void initializePlayerLivesLock();
+
+void lockPlayerLivesLock();
+
+void unlockPlayerLivesLock();
+
+void destroyPlayerLivesLock();
+
+////////////////////////////////
+
+int isGameOn();
+
+void gameOff();
+
+////////////////////////////////
+
+void quickSleep(int num);
+
+///////////////////////////////
+
+void addLogCount();
+
+
+#endif 
+
+///////////////////////////////////////////////////////////////
+/* GAME GLOBALS
+/ globals.c
+/Comp 3430 
+/A2
+/Elizaeth Kenyon
+/7739830
+/ A file to keep track of all globals needed for the game.
+// As well as to handle error checking.
+*/////////////////////////////////////////////////////////////
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <time.h>
+
+#include "console.h"
+#include "Player.h"
+
+#define MUTEX_NORMAL PTHREAD_MUTEX_NORMAL
+
+static pthread_mutexattr_t attribute_norm;
+static pthread_mutex_t draw_lock;
+static pthread_mutex_t refresh_lock;
+static pthread_mutex_t game_on_lock;
+static pthread_mutex_t list_lock;
+static pthread_mutex_t log_count_lock;
+static pthread_mutex_t player_live_lock;
+static pthread_cond_t game_on_cv;
+
+static int game_on = 1;
+static int log_count = 0;
+static int player_lives = 4;
+
+Player *player;
+
+int ret;
+
+/////////////////////////////////////////////////////////////
+Player* getPlayer(){
+	return player;
+}
+
+void updatePlayer(Player *this_player){
+	player->x = this_player->x;
+	player->y = this_player->y;
+	player->tile = this_player->tile;
+}
+
+void mallocPlayer(){
+	player = malloc(sizeof(Player));
+}
+
+void freePlayer(){
+	free(player);
+}
+//////////////////////////////////////////////////////////
+
+void initializePlayerLivesLock(){
+	int ret;
+	ret = pthread_mutexattr_init(&attribute_norm);
+	if(ret != 0){
+		perror("Error initializing mutex attribute");
+	}
+	ret = pthread_mutexattr_settype(&attribute_norm, MUTEX_NORMAL);
+	if(ret != 0){
+		perror("Error setting mutex");
+	}
+	ret = pthread_mutex_init(&player_live_lock, &attribute_norm);
+	if(ret != 0){
+		perror("Error initializing mutex");
+	}
+}
+
+void lockPlayerLivesLock(){
+	int ret;
+	ret = pthread_mutex_lock(&player_live_lock);
+	if(ret != 0){
+		perror("Error locking");
+	}
+}
+
+void unlockPlayerLivesLock(){
+	int ret;
+	ret = pthread_mutex_unlock(&player_live_lock);
+	if(ret != 0){
+		perror("error unlocking mutex");
+	}
+}
+
+void destroyPlayerLivesLock(){
+	int ret;
+	ret = pthread_mutex_destroy(&player_live_lock);
+	if(ret != 0){
+		perror("error destroying mutex");
+	}
+}
+
+/////////////////////////////////////////////////////////////
+
+void loseLife(){
+	lockPlayerLivesLock();
+	player_lives--;
+	unlockPlayerLivesLock();
+}
+
+int getLives(){
+	return player_lives;
+}
+
+//////////////////////////////////////////////////////////////
+
+void initializeDrawLock(){
+	int ret;
+	ret = pthread_mutexattr_init(&attribute_norm);
+	if(ret != 0){
+		perror("Error initializing mutex attribute");
+	}
+	ret = pthread_mutexattr_settype(&attribute_norm, MUTEX_NORMAL);
+	if(ret != 0){
+		perror("Error setting mutex");
+	}
+	ret = pthread_mutex_init(&draw_lock, &attribute_norm);
+	if(ret != 0){
+		perror("Error initializing mutex");
+	}
+}
+
+void lockDrawLock(){
+	int ret;
+	ret = pthread_mutex_lock(&draw_lock);
+	if(ret != 0){
+		perror("Error locking");
+	}
+}
+
+void unlockDrawLock(){
+	int ret;
+	ret = pthread_mutex_unlock(&draw_lock);
+	if(ret != 0){
+		perror("error unlocking mutex");
+	}
+}
+
+void destroyDrawLock(){
+	int ret;
+	ret = pthread_mutex_destroy(&draw_lock);
+	if(ret != 0){
+		perror("error destroying mutex");
+	}
+}
+
+////////////////////////////////////////////////////
+
+void initializeFrogLock(){
+	int ret; 
+	ret = pthread_mutexattr_init(&attribute_norm);
+	if(ret != 0){
+		perror("Error initializing mutex attribute");
+	}
+	ret = pthread_mutexattr_settype(&attribute_norm, MUTEX_NORMAL);
+	if(ret != 0){
+		perror("Error setting mutex");
+	}
+	ret = pthread_mutex_init(&refresh_lock, &attribute_norm);
+	if(ret != 0){
+		perror("Error initializing mutex");
+	}
+}
+
+void lockFrogLock(){
+	int ret;
+	ret = pthread_mutex_lock(&refresh_lock);
+	if(ret != 0){
+		perror("Error locking");
+	}
+}
+
+void unlockFrogLock(){
+	int ret;
+	ret = pthread_mutex_unlock(&refresh_lock);
+	if(ret != 0){
+		perror("error unlocking mutex");
+	}
+}
+
+void destroyFrogLock(){
+	int ret;
+	ret = pthread_mutex_destroy(&refresh_lock);
+	if(ret != 0){
+		perror("error destroying mutex");
+	}
+}
+
+////////////////////////////////////////////////////////
+
+void initializeGameOnCV()
+{
+	ret = pthread_cond_init(&game_on_cv, NULL);
+	if(ret != 0){
+		perror("Error initializing game_on");
+		exit(EXIT_FAILURE);
+	}
+}
+
+void destroyGameOnCV(){
+	ret = pthread_cond_destroy(&game_on_cv);
+	if(ret != 0){
+		perror("Error destroying game_on");
+		exit(EXIT_FAILURE);
+	}
+}
+
+void signalGameOnCV(){
+	pthread_cond_signal(&game_on_cv);
+}
+
+void waitGameOnCV(){
+	pthread_cond_wait(&game_on_cv, &game_on_lock);
+}
+
+////////////////////////////////////////////////////////
+void initializeGameOnLock(){
+	int ret;
+	ret = pthread_mutexattr_init(&attribute_norm);
+	if(ret != 0){
+		perror("Error initializing mutex attribute");
+	}
+	ret = pthread_mutexattr_settype(&attribute_norm, MUTEX_NORMAL);
+	if(ret != 0){
+		perror("Error setting mutex");
+	}
+	ret = pthread_mutex_init(&game_on_lock, &attribute_norm);
+	if(ret != 0){
+		perror("Error initializing mutex");
+	}
+}
+
+void lockGameOnLock(){
+	int ret;
+	ret = pthread_mutex_lock(&game_on_lock);
+	if(ret != 0){
+		perror("Error locking");
+	}
+}
+
+void unlockGameOnLock(){
+	int ret;
+	ret = pthread_mutex_unlock(&game_on_lock);
+	if(ret != 0){
+		perror("error unlocking mutex");
+	}
+}
+
+void destroyGameOnLock(){
+	int ret;
+	ret = pthread_mutex_destroy(&game_on_lock);
+	if(ret != 0){
+		perror("error destroying mutex");
+	}
+}
+
+//////////////////////////////////////////////////////////
+
+void initializeListLock(){
+	int ret;
+	ret = pthread_mutexattr_init(&attribute_norm);
+	if(ret != 0){
+		perror("Error initializing mutex attribute");
+	}
+	ret = pthread_mutexattr_settype(&attribute_norm, MUTEX_NORMAL);
+	if(ret != 0){
+		perror("Error setting mutex");
+	}
+	ret = pthread_mutex_init(&list_lock, &attribute_norm);
+	if(ret != 0){
+		perror("Error initializing mutex");
+	}
+}
+
+void lockListLock(){
+	int ret;
+	ret = pthread_mutex_lock(&list_lock);
+	if(ret != 0){
+		perror("Error locking");
+	}
+} 
+
+void unlockListLock(){
+	int ret;
+	ret = pthread_mutex_unlock(&list_lock);
+	if(ret != 0){
+		perror("error unlocking mutex");
+	}
+}
+
+void destroyListLock(){
+	int ret;
+	ret = pthread_mutex_destroy(&list_lock);
+	if(ret != 0){
+		perror("error destroying mutex");
+	}
+}
+
+/////////////////////////////////////////////////////
+
+void initializeLogCountLock(){
+	int ret;
+	ret = pthread_mutexattr_init(&attribute_norm);
+	if(ret != 0){
+		perror("Error initializing mutex attribute");
+	}
+	ret = pthread_mutexattr_settype(&attribute_norm, MUTEX_NORMAL);
+	if(ret != 0){
+		perror("Error setting mutex");
+	}
+	ret = pthread_mutex_init(&log_count_lock, &attribute_norm);
+	if(ret != 0){
+		perror("Error initializing mutex");
+	}
+}
+
+void lockLogCountLock(){
+	int ret;
+	ret = pthread_mutex_lock(&log_count_lock);
+	if(ret != 0){
+		perror("Error locking");
+	}
+}
+
+void unlockLogCountLock(){
+	int ret;
+	ret = pthread_mutex_unlock(&log_count_lock);
+	if(ret != 0){
+		perror("error unlocking mutex");
+	}
+}
+
+void destroyLogCountLock(){
+	int ret;
+	ret = pthread_mutex_destroy(&log_count_lock);
+	if(ret != 0){
+		perror("error destroying mutex");
+	}
+}
+
+////////////////////////////////////////////////////////
+
+int isGameOn(){
+	return game_on;
+}
+
+void gameOff(){
+	game_on = 0; 
+}
+
+/////////////////////////////////////////////////////
+
+void quickSleep(int num){
+	int i;
+	for(i = 0;i <= num && isGameOn(); i++){
+		sleepTicks(1);
+	}
+}
+
+
+
+
+
+
+
+

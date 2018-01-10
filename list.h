@@ -1,0 +1,37 @@
+//////////////////////////////////
+//list.h
+//Comp 3430
+//A2
+//Elzabeth Kenyon
+//7739830
+/////////////////////////////
+
+#include <stdio.h>
+#include <stdlib.h>
+#include "log.h"
+
+
+///////////////////////////////////////////
+
+typedef struct NODE Node;
+
+///////////////////////////////////////////
+
+struct NODE{
+	Log *log;
+	Node *next;
+	Node *prev;
+};
+
+//////////////////////////////////////
+
+//insert log into linked list
+void insert(Log *log);
+
+//delete a node
+void deleteNode(Node *node);
+
+//return pointer to head node
+Node *getHead();
+
+//////////////////////////////////////
