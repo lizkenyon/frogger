@@ -2,8 +2,7 @@
 //list.h
 //Comp 3430
 //A2
-//Elzabeth Kenyon
-//7739830
+//Elizabeth Kenyon
 /////////////////////////////
 
 #include <stdio.h>
