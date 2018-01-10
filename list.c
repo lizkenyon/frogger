@@ -3,7 +3,6 @@
 //Comp 3430
 //A2
 //Elizabeth Kenyon
-//7739830
 // doubly linked list to hold logs
 ///////////////////////////////////////
 
