@@ -2,7 +2,6 @@
 COMP 3430
 Assigment 2: Frogger
 Elizabeth Kenyon
-7739830
 listing file
 
 //////////////////////////////////////
@@ -12,7 +11,6 @@ listing file
 // Assignment 2
 // Frogger
 // Elizabeth Kenyon
-// 7739830
 //***************************************
 
 #include <string.h>
