@@ -3,7 +3,6 @@
 //Comp 3430
 //A2 Frogger
 //Elizabeth Kenyon
-//7739830
 // Thread wrapper methods for error checking
 ////////////////////////////////////////
 
