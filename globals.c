@@ -4,7 +4,6 @@
 /Comp 3430 
 /A2
 /Elizaeth Kenyon
-/7739830
 / A file to keep track of all globals needed for the game.
 // As well as to handle error checking.
 */////////////////////////////////////////////////////////////
