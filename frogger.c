@@ -3,7 +3,6 @@
 // Assignment 2
 // Frogger
 // Elizabeth Kenyon
-// 7739830
 //***************************************
 
 #include <string.h>
